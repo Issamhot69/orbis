@@ -182,4 +182,76 @@ router.post('/logout', authenticate, (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' })
 })
 
+
+// ─── Get current user profile ─────────────────
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, (req as any).userId)).limit(1)
+    if (!user) return res.status(404).json({ error: 'User not found' })
+    res.json({ user: sanitize(user) })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── Update current user profile ──────────────
+router.patch('/me', authenticate, async (req, res) => {
+  try {
+    const { firstName, lastName, avatarUrl } = req.body
+    const updates: any = { updatedAt: new Date() }
+    if (firstName !== undefined) updates.firstName = firstName
+    if (lastName  !== undefined) updates.lastName  = lastName
+    if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl
+
+    const [user] = await db.update(users).set(updates).where(eq(users.id, (req as any).userId)).returning()
+    res.json({ user: sanitize(user) })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── Forgot password ───────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body
+    if (!email) return res.status(400).json({ error: 'email required' })
+
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1)
+    // Always respond success even if user not found, to avoid leaking which emails exist
+    if (!user) return res.json({ success: true, message: 'If this email exists, a reset link was sent' })
+
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000) // 1h
+
+    await db.update(users).set({ resetToken, resetTokenExpiry }).where(eq(users.id, user.id))
+
+    const resetLink = (process.env.FRONTEND_URL || 'http://localhost:3090') + '/reset-password?token=' + resetToken
+    console.log(`[Auth] Password reset link for ${user.email}: ${resetLink}`)
+
+    res.json({ success: true, message: 'If this email exists, a reset link was sent', demoLink: resetLink })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── Reset password ─────────────────────────────
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body
+    if (!token || !newPassword) return res.status(400).json({ error: 'token and newPassword required' })
+
+    const [user] = await db.select().from(users).where(eq(users.resetToken, token)).limit(1)
+    if (!user) return res.status(400).json({ error: 'Invalid or expired reset token' })
+    if (!user.resetTokenExpiry || new Date(user.resetTokenExpiry) < new Date())
+      return res.status(400).json({ error: 'Reset token has expired' })
+
+    const passwordHash = await bcrypt.hash(newPassword, 12)
+    await db.update(users).set({ passwordHash, resetToken: null, resetTokenExpiry: null, updatedAt: new Date() }).where(eq(users.id, user.id))
+
+    res.json({ success: true, message: 'Password reset successfully' })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

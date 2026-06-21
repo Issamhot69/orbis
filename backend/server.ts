@@ -34,7 +34,7 @@ const io         = initSocket(httpServer)
 const PORT       = process.env.PORT || 4080
 
 app.use(helmet())
-app.use(cors({ origin:'*', credentials:true }))
+app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
 app.use(rateLimiter(200, 60000))
 app.use(fraudDetection)
