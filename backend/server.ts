@@ -30,6 +30,9 @@ import universeGraphRoutes from './universe-graph/routes/universe-graph.routes'
 import opportunityRoutes   from './opportunity/routes/opportunity.routes'
 import stripeRoutes        from './stripe/stripe.routes'
 import insightsRoutes      from './ai-insights/insights.routes'
+import wholesaleRoutes     from './wholesale/wholesale.routes'
+import devmarketRoutes     from './devmarket/devmarket.routes'
+import investorsRoutes     from './investors/investors.routes'
 import adminRoutes         from './admin/admin.routes'
 
 const app        = express()
@@ -70,6 +73,9 @@ app.use('/api/universe-graph',universeGraphRoutes)
 app.use('/api/opportunity',   opportunityRoutes)
 app.use('/api/stripe',        stripeRoutes)
 app.use('/api/ai-insights',   insightsRoutes)
+app.use('/api/wholesale',      wholesaleRoutes)
+app.use('/api/devmarket',      devmarketRoutes)
+app.use('/api/investors',      investorsRoutes)
 app.use('/api/admin',         adminRoutes)
 
 httpServer.listen(PORT, () => {
