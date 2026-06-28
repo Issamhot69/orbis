@@ -7,6 +7,7 @@ import { initSocket } from './lib/socket'
 import swaggerUi from 'swagger-ui-express'
 import { swaggerSpec } from './lib/swagger'
 import { rateLimiter, fraudDetection } from './lib/security'
+import compression from 'compression'
 dotenv.config()
 
 import authRoutes          from './auth/routes/auth.routes'
@@ -28,6 +29,7 @@ import paymentsRoutes      from './payments/routes/payments.routes'
 import universeGraphRoutes from './universe-graph/routes/universe-graph.routes'
 import opportunityRoutes   from './opportunity/routes/opportunity.routes'
 import stripeRoutes        from './stripe/stripe.routes'
+import insightsRoutes      from './ai-insights/insights.routes'
 import adminRoutes         from './admin/admin.routes'
 
 const app        = express()
@@ -35,6 +37,7 @@ const httpServer = createServer(app)
 const io         = initSocket(httpServer)
 const PORT       = process.env.PORT || 4080
 
+app.use(compression())
 app.use(helmet())
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
@@ -66,6 +69,7 @@ app.use('/api/payments',      paymentsRoutes)
 app.use('/api/universe-graph',universeGraphRoutes)
 app.use('/api/opportunity',   opportunityRoutes)
 app.use('/api/stripe',        stripeRoutes)
+app.use('/api/ai-insights',   insightsRoutes)
 app.use('/api/admin',         adminRoutes)
 
 httpServer.listen(PORT, () => {
@@ -77,3 +81,33 @@ httpServer.listen(PORT, () => {
 
 export { io }
 export default app
+
+// ─── Performance monitoring ───────────────────
+const requestStats = { total: 0, errors: 0, avgMs: 0, totalMs: 0 }
+
+app.use((req: any, res: any, next: any) => {
+  const start = Date.now()
+  res.on('finish', () => {
+    const ms = Date.now() - start
+    requestStats.total++
+    requestStats.totalMs += ms
+    requestStats.avgMs = Math.round(requestStats.totalMs / requestStats.total)
+    if (res.statusCode >= 400) requestStats.errors++
+  })
+  next()
+})
+
+app.get('/metrics', (_, res) => {
+  const mem = process.memoryUsage()
+  res.json({
+    uptime:    Math.round(process.uptime()) + 's',
+    requests:  requestStats,
+    memory: {
+      heapUsed:  Math.round(mem.heapUsed / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024) + 'MB',
+      rss:       Math.round(mem.rss / 1024 / 1024) + 'MB',
+    },
+    node:    process.version,
+    env:     process.env.NODE_ENV || 'development',
+  })
+})

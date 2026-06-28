@@ -6,6 +6,7 @@ import { db } from '../../lib/db'
 import { users } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/authenticate'
+import { sendWelcomeEmail, sendPasswordResetEmail, send2FAEmail } from '../../lib/email'
 
 const router     = Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'orbis_dev_secret'
@@ -36,6 +37,8 @@ router.post('/register', async (req, res) => {
     }).returning()
 
     const token = generateToken(user.id)
+    // Send welcome email (non-blocking)
+    sendWelcomeEmail(user.email, user.firstName).catch(console.error)
     res.status(201).json({ token, user: sanitize(user) })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -227,8 +230,11 @@ router.post('/forgot-password', async (req, res) => {
 
     const resetLink = (process.env.FRONTEND_URL || 'http://localhost:3090') + '/reset-password?token=' + resetToken
     console.log(`[Auth] Password reset link for ${user.email}: ${resetLink}`)
+    // Send real email
+    const shortCode = resetToken.slice(0,6).toUpperCase()
+    await sendPasswordResetEmail(user.email, user.firstName, resetLink, shortCode).catch(console.error)
 
-    res.json({ success: true, message: 'If this email exists, a reset link was sent', demoLink: resetLink })
+    res.json({ success: true, message: 'If this email exists, a reset link was sent', demoLink: resetLink, code: shortCode })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
