@@ -4,6 +4,8 @@ import helmet from 'helmet'
 import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { initSocket } from './lib/socket'
+import swaggerUi from 'swagger-ui-express'
+import { swaggerSpec } from './lib/swagger'
 import { rateLimiter, fraudDetection } from './lib/security'
 dotenv.config()
 
@@ -41,6 +43,8 @@ app.use(fraudDetection)
 
 app.set('io', io)
 
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customTitle: 'ORBIS API Docs', customSiteTitle: 'ORBIS API' }))
+app.get('/api/docs-json', (_, res) => res.json(swaggerSpec))
 app.get('/health', (_, res) => res.json({ status:'ok', project:'ORBIS', version:'2.0.0', websocket:true }))
 
 app.use('/api/auth',          authRoutes)
